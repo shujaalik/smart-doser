@@ -3,9 +3,11 @@ import Controller from "./Controller"
 
 function App() {
 
-  return <div className="flex font-poppins justify-center items-start flex-col px-10 py-4 gap-5">
-    <Header />
-    <Controller />
+  return <div className="h-screen font-poppins">
+    <div className="flex justify-center items-start flex-col px-10 py-4 gap-5">
+      <Header />
+      <Controller />
+    </div>
   </div>
 }
 
