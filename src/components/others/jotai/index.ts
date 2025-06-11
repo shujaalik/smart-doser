@@ -4,6 +4,7 @@ const store = createStore();
 
 const deviceAtom = atom({
   isConnected: false,
+  isBusy: false,
   device: null as BluetoothDevice | null,
 });
 
