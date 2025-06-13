@@ -8,4 +8,6 @@ const deviceAtom = atom({
   device: null as BluetoothDevice | null,
 });
 
-export { deviceAtom, store };
+const refreshProgramsAtom = atom(false);
+
+export { deviceAtom, store, refreshProgramsAtom };

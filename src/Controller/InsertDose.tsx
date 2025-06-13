@@ -10,13 +10,17 @@ import { transaction } from "@/components/others/functions/bluetooth";
 import { toast } from "sonner";
 import { BiInjection } from "react-icons/bi";
 
-const InsertDose = () => {
+const InsertDose = ({
+    isDoctor
+}: {
+    isDoctor: boolean;
+}) => {
     const [params, setParams] = useState<{
         dose: number;
         direction: "inject" | "eject";
     }>({
         dose: 0,
-        direction: "inject"
+        direction: !isDoctor ? "eject" : "inject"
     });
     const [loading, setLoading] = useState<null | string>(null);
     const device = useSub(deviceAtom);
@@ -73,7 +77,7 @@ const InsertDose = () => {
                     ...prev,
                     direction: value as "inject" | "eject"
                 }))}>
-                    <SelectTrigger size="sm" id="interval" className="w-full col-span-2">
+                    <SelectTrigger size="sm" id="interval" disabled={!isDoctor} className="w-full col-span-2">
                         <SelectValue placeholder="eg: (inject, eject)" />
                     </SelectTrigger>
                     <SelectContent>
@@ -83,7 +87,7 @@ const InsertDose = () => {
                 </Select>
             </div>
         </div>
-        <Button size="sm" className="mt-auto" disabled={!device.isConnected || device.isBusy} onClick={act}>Inject<BiInjection /></Button>
+        <Button size="sm" className="mt-auto" disabled={!device.isConnected || device.isBusy} onClick={act}>Perform<BiInjection /></Button>
     </div>
 }
 
