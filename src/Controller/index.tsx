@@ -123,7 +123,7 @@ const Controller = ({
                         <div className="flex items-center justify-center gap-2">
                             {!device.isConnected ? <Button size="sm" onClick={connect} disabled={device.isBusy}>Connect <LuBluetooth /></Button>
                                 : <Button size="sm" variant={"destructive"} className="text-white" onClick={disconnect} disabled={device.isBusy}>Disconnect <LuBluetoothOff /></Button>}
-                            <Button size="sm" variant={"destructive"} className="text-white" disabled={device.isBusy} onClick={stop}>Stop <AiOutlineStop /></Button>
+                            <Button size="sm" variant={"destructive"} className="text-white" disabled={!device.isConnected || device.isBusy} onClick={stop}>Stop <AiOutlineStop /></Button>
                         </div>
                     </div>
                     <Separator />

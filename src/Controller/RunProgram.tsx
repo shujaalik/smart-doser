@@ -94,7 +94,7 @@ const RunProgram = ({
                         </div>
                         <div className="flex items-center gap-2">
                             <Button size="sm" disabled={!device.isConnected || device.isBusy} onClick={() => act(index)}>Run</Button>
-                            <Button size="sm" variant="destructive" onClick={() => del(index)}><IoTrashBin /></Button>
+                            <Button size="sm" variant="destructive" className="text-white" onClick={() => del(index)}><IoTrashBin /></Button>
                         </div>
                     </div>
                 )) : <Spinner />}
