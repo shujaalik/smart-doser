@@ -87,7 +87,7 @@ const InsertDose = ({
                 </Select>
             </div>
         </div>
-        <Button size="sm" className="mt-auto" disabled={!device.isConnected || device.isBusy} onClick={act}>Perform<BiInjection /></Button>
+        <Button size="sm" className="mt-5" disabled={!device.isConnected || device.isBusy} onClick={act}>Perform<BiInjection /></Button>
     </div>
 }
 

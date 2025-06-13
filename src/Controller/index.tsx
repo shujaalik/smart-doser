@@ -111,7 +111,7 @@ const Controller = ({
     return <>
         {loading && <FullScreenLoader text={loading} />}
         <div className="flex font-poppins justify-center items-center flex-col px-10 py-4 gap-5 w-full">
-            <Card className="w-4xl">
+            <Card className="max-w-4xl">
                 <CardContent className="py-4">
                     <div className="flex justify-between items-center mb-3">
                         <div className="flex flex-col gap-2">
@@ -128,7 +128,7 @@ const Controller = ({
                     </div>
                     <Separator />
                     <div className="mt-5 min-h-48">
-                        <div className="grid grid-cols-3 gap-5 h-full">
+                        <div className="grid grid-cols-1 gap-5 h-full md:grid-cols-2 lg:grid-cols-3">
                             <InsertDose isDoctor={isDoctor} />
                             {isDoctor ? <AddProgram setRefreshPrograms={setRefreshPrograms} /> : null}
                             <div style={{

@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button"
-import { IoSettingsOutline } from "react-icons/io5";
+import { IoSettingsOutline, IoTrashBin } from "react-icons/io5";
 import { useEffect, useState } from "react";
 import FullScreenLoader from "@/components/ui/custom/loader/FullScreen";
 import { deviceAtom } from "@/components/others/jotai";
 import useSub from "@/components/others/jotai/hooks";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { get } from "@/components/others/firebase/api/db";
+import { get, set } from "@/components/others/firebase/api/db";
 import { transaction } from "@/components/others/functions/bluetooth";
 import { toast } from "sonner";
 
@@ -64,6 +64,23 @@ const RunProgram = ({
         setLoading(null);
     }
 
+    const del = async (index: number) => {
+        setLoading("Deleting Program");
+        const program = programs?.[index];
+        if (!program) return;
+        try {
+            await set(`programs/${program.name}`, null);
+            toast.success("Program deleted successfully");
+            setPrograms((prev) => prev?.filter((_, i) => i !== index) || null);
+        } catch (error) {
+            console.error("Error deleting program:", error);
+            toast.error("Failed to delete the program. Please try again.");
+        } finally {
+            setLoading(null);
+        }
+    }
+
+
     return <div className="h-full flex flex-col w-full gap-4">
         {loading && <FullScreenLoader text={loading} />}
         <p className="underline flex items-center gap-1 text-xl text-accent-foreground/90 font-medium font-teko">Run Program <IoSettingsOutline /></p>
@@ -73,9 +90,12 @@ const RunProgram = ({
                     <div key={index} className="flex items-center justify-between p-3 bg-accent rounded-md">
                         <div>
                             <p className="text-sm font-medium underline">{program.name}</p>
-                            <p className="text-xs">Dose: <strong>{program.dose}ml</strong> every <strong>{program.intervalValue} {program.interval}s</strong></p>
+                            <p className="text-xs">Dose: <strong>{program.dose}ml</strong> every <strong>{program.intervalValue} {program.interval === "hour" ? "hr" : "min"}</strong></p>
                         </div>
-                        <Button size="sm" disabled={!device.isConnected || device.isBusy} onClick={() => act(index)}>Run</Button>
+                        <div className="flex items-center gap-2">
+                            <Button size="sm" disabled={!device.isConnected || device.isBusy} onClick={() => act(index)}>Run</Button>
+                            <Button size="sm" variant="destructive" onClick={() => del(index)}><IoTrashBin /></Button>
+                        </div>
                     </div>
                 )) : <Spinner />}
             </div>
