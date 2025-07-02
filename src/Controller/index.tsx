@@ -7,17 +7,26 @@ import {
 } from "../components/ui/card"
 import { Separator } from "../components/ui/separator"
 import { Button } from "@/components/ui/button"
-import { LuBluetooth, LuBluetoothOff } from "react-icons/lu";
-import { deviceAtom } from "@/components/others/jotai"
+import { LuBluetooth, LuBluetoothOff, LuWifi } from "react-icons/lu";
+import { deviceAtom, store } from "@/components/others/jotai"
 import { connectToBluetoothDevice, disconnectFromBluetoothDevice, transaction, verifyBluetoothDevice } from "@/components/others/functions/bluetooth"
 import useSub from "@/components/others/jotai/hooks"
 import FullScreenLoader from "@/components/ui/custom/loader/FullScreen"
 import { AiOutlineStop } from "react-icons/ai";
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import InsertDose from "./InsertDose";
 import AddProgram from "./AddProgram";
 import RunProgram from "./RunProgram";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import mqtt, { type IClientOptions, type MqttClient } from "mqtt";
 
 const Controller = ({
     isDoctor
@@ -121,7 +130,10 @@ const Controller = ({
                             <CardDescription className="mt-[-5px]">Configure/Use Connected Doser</CardDescription>
                         </div>
                         <div className="flex items-center justify-center gap-2">
-                            {!device.isConnected ? <Button size="sm" onClick={connect} disabled={device.isBusy}>Connect <LuBluetooth /></Button>
+                            {!device.isConnected ? <>
+                                {isDoctor && <ConnectMQTTModal />}
+                                <Button size="sm" onClick={connect} disabled={device.isBusy}>Connect <LuBluetooth /></Button>
+                            </>
                                 : <Button size="sm" variant={"destructive"} className="text-white" onClick={disconnect} disabled={device.isBusy}>Disconnect <LuBluetoothOff /></Button>}
                             <Button size="sm" variant={"destructive"} className="text-white" disabled={!device.isConnected || device.isBusy} onClick={stop}>Stop <AiOutlineStop /></Button>
                         </div>
@@ -142,6 +154,147 @@ const Controller = ({
             </Card>
         </div>
     </>
+}
+
+const ConnectMQTTModal = () => {
+    const device = useSub(deviceAtom);
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState<null | string>(null);
+    const [scannedDevices, setScannedDevices] = useState<{
+        [machineID: string]: string
+    }>({});
+    const [client, setClient] = useState<MqttClient | null>(null);
+
+    useEffect(() => {
+        try {
+            const options: IClientOptions = {
+                clientId: 'react_mqtt_' + Math.random().toString(16).substr(2, 8),
+                protocol: "wss",
+                port: 8884,
+            };
+            const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', options);
+            client.on("connect", () => {
+                setClient(client);
+                client.subscribe(`doser_to_client/broadcast`, (err) => {
+                    if (err) {
+                        console.error("Failed to subscribe to MQTT topic:", err);
+                        setClient(null);
+                    } else {
+                        console.log("Subscribed to doser_to_client/broadcast");
+                    }
+                });
+            })
+            client.on("error", (err) => {
+                console.error("MQTT Client Error:", err);
+                setClient(null);
+            });
+            client.on("end", () => {
+                console.log("MQTT Client Disconnected");
+                setClient(null);
+            });
+            client.on("message", (topic, message) => {
+                const msg = message.toString();
+                if (topic === `doser_to_client/broadcast`) {
+                    try {
+                        const machineID = msg.split("/")[1];
+                        setScannedDevices((prev) => ({
+                            ...prev,
+                            [machineID]: msg
+                        }));
+                    } catch (error) {
+                        console.error("Error parsing MQTT message:", error);
+                    }
+                } else if (topic.startsWith(`doser_to_client/`)) {
+                    const machineID = topic.split("/")[1];
+                    if (msg === "ACK") {
+                        store.set(deviceAtom, (prev) => ({
+                            ...prev,
+                            isConnected: true,
+                            device: machineID
+                        }));
+                        setOpen(false);
+                        toast.success(`Connected to ${machineID}`);
+                        client.end();
+                    } else {
+                        console.error("Unexpected message received:", msg);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("Error initializing MQTT client:", error);
+            setClient(null);
+        }
+    }, [])
+
+    const scanMQTT = async () => {
+        if (!client) return;
+        try {
+            setLoading("Scanning for MQTT devices");
+            for (let i = 0; i < 3; i++) {
+                client.publish(`client_to_doser/broadcast`, JSON.stringify({
+                    action: "SCAN",
+                }));
+            }
+        } catch (error) {
+            console.error("Error during MQTT calibration:", error);
+        } finally {
+            setLoading(null);
+        }
+    }
+
+    const connect = async (machineID: string) => {
+        if (!client) {
+            toast.error("MQTT client is not initialized. Please try again.");
+            return;
+        }
+        client.unsubscribe(`doser_to_client/broadcast`, (err) => {
+            if (err) {
+                console.error("Failed to unsubscribe from MQTT topic:", err);
+            }
+        });
+        client.subscribe(`doser_to_client/${machineID}`, (err) => {
+            if (err) {
+                console.error("Failed to subscribe to MQTT topic:", err);
+                setLoading(null);
+                return;
+            }
+            console.log(`Subscribed to doser_to_client/${machineID}`);
+        });
+        client.publish(`client_to_doser/${machineID}`, JSON.stringify({
+            action: "SYNC"
+        }));
+    }
+
+    return <Dialog open={open}>
+        {loading && <FullScreenLoader text={loading} />}
+        <DialogTrigger><Button size="sm" disabled={device.isBusy || client === null} onClick={() => setOpen(true)}>Connect <LuWifi /></Button></DialogTrigger>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Connect to MQTT</DialogTitle>
+                <DialogDescription>
+                    Connect to the MQTT broker to enable remote control and monitoring of the doser.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end">
+                <Button className="font-semibold uppercase" onClick={scanMQTT} disabled={device.isBusy}>Scan</Button>
+            </div>
+            <Separator />
+            <div className="mt-4">
+                {
+                    Object.entries(scannedDevices).map(([machineID, topic], index) => (
+                        <div key={machineID + index} className="flex items-center justify-between p-3 bg-accent rounded-md">
+                            <div>
+                                <p className="text-sm font-medium underline">{machineID}</p>
+                                <p className="text-xs">{topic}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button size="sm" onClick={() => connect(machineID)}>Connect</Button>
+                            </div>
+                        </div>
+                    ))}
+            </div>
+        </DialogContent>
+    </Dialog>
 }
 
 export default Controller

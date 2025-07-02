@@ -1,4 +1,4 @@
-import { Slider } from "@/components/ui/slider";
+// import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useSetAtom } from "jotai";
 import { transaction } from "@/components/others/functions/bluetooth";
 import { toast } from "sonner";
 import { BiInjection } from "react-icons/bi";
+import { Input } from "@/components/ui/input";
 
 const InsertDose = ({
     isDoctor
@@ -66,11 +67,15 @@ const InsertDose = ({
             <div className="grid grid-cols-3 gap-5 items-center">
                 <label htmlFor="rotation" className="text-sm font-medium text-gray-700">Dose</label>
                 <div className="flex items-center gap-3 col-span-2">
-                    <Slider id="rotation" value={[params.dose]} defaultValue={[params.dose]} onValueChange={e => setParams(prev => ({
+                    <Input className="text-sm h-8" placeholder="Dosage ml" type="number" step={1} min={1} value={params.dose || ""} onChange={e => setParams(prev => ({
+                        ...prev,
+                        dose: parseInt(e.target.value) || 0
+                    }))} />
+                    {/* <Slider id="rotation" value={[params.dose]} defaultValue={[params.dose]} onValueChange={e => setParams(prev => ({
                         ...prev,
                         dose: e[0]
-                    }))} max={20} step={.1} />
-                    <span className="text-sm text-gray-500 font-semibold">{params.dose}ml</span>
+                    }))} max={20} step={.1} /> */}
+                    {/* <span className="text-sm text-gray-500 font-semibold">{params.dose}ml</span> */}
                 </div>
                 <label htmlFor="rotation" className="text-sm font-medium text-gray-700">Direction</label>
                 <Select value={params.direction} onValueChange={(value) => setParams(prev => ({
