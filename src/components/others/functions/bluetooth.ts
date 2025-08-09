@@ -62,21 +62,24 @@ const transaction = (message: {
       return;
     }
     if (typeof device === "string") {
+      let timeout: NodeJS.Timeout;
       const options: IClientOptions = {
         clientId: "react_mqtt_" + Math.random().toString(16).substr(2, 8),
         protocol: "wss",
-        port: 8884,
+        username: import.meta.env.VITE_MQTT_BROKER_USERNAME,
+        password: import.meta.env.VITE_MQTT_BROKER_PASSWORD,
+        port: 8083,
       };
       const client = mqtt.connect("wss://mqtt.industrialpmr.com/mqtt", options);
       client.on("connect", () => {
         console.log("MQTT Client Connected");
-        client.subscribe(`doser_to_client/${device}`, (err) => {
+        client.subscribe(`smart-doser-225/unit_to_server/${device}`, (err) => {
           if (err) {
             reject(err);
             return;
           }
           client.publish(
-            `client_to_doser/${device}`,
+            `smart-doser-225/server_to_unit/${device}`,
             JSON.stringify(message),
             {},
             (err) => {
@@ -84,8 +87,13 @@ const transaction = (message: {
                 reject(err);
                 return;
               }
+              timeout = setTimeout(() => {
+                reject({ message: "Timeout" });
+                client.end();
+              }, 8000);
               client.on("message", (topic, msg) => {
-                if (topic === `doser_to_client/${device}`) {
+                if (topic === `smart-doser-225/unit_to_server/${device}`) {
+                  clearTimeout(timeout);
                   const response = msg.toString();
                   client.end();
                   resolve(response);

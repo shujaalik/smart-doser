@@ -167,30 +167,19 @@ const ConnectMQTTModal = () => {
 
     useEffect(() => {
         try {
-            let timeout: NodeJS.Timeout;
             const options: IClientOptions = {
                 clientId: 'react_mqtt_' + Math.random().toString(16).substr(2, 8),
                 protocol: "wss",
-                port: 8884,
+                username: import.meta.env.VITE_MQTT_BROKER_USERNAME,
+                password: import.meta.env.VITE_MQTT_BROKER_PASSWORD,
+                port: 8083,
             };
-            const client = mqtt.connect('wss://mqtt.industrialpmr.com', options);
+            const client = mqtt.connect('wss://mqtt.industrialpmr.com/mqtt', options);
             client.on("connect", () => {
                 setClient(client);
                 client.subscribe(`smart-doser-225/unit_to_server/#`, (err) => {
                     if (err) {
                         console.error("Failed to subscribe to MQTT topic:", err);
-                        client.publish(`smart-doser-225/server_to_unit/broadcast`, JSON.stringify({
-                            action: "SCAN",
-                        }), {}, (err) => {
-                            if (err) {
-                                console.error("Failed to publish MQTT message:", err);
-                            }
-                        });
-                        timeout = setTimeout(() => {
-                            setLoading("Failed to connect to MQTT broker. Please try again.");
-                            setClient(null);
-                            client.end();
-                        }, 5000);
                     } else {
                         console.log("Subscribed to smart-doser-225/unit_to_server/#");
                     }
@@ -208,7 +197,6 @@ const ConnectMQTTModal = () => {
                 const msg = message.toString();
                 const macAddress = topic.split("/")[2];
                 if (msg === "SCAN_ACK") {
-                    clearTimeout(timeout);
                     setLoading(null);
                     setScannedDevices((prev) => ({
                         ...prev,
@@ -216,7 +204,7 @@ const ConnectMQTTModal = () => {
                     }));
                     console.log("MQTT Scan Acknowledged");
                 }
-                if (msg === "ACK") {
+                else if (msg === "ACK") {
                     store.set(deviceAtom, (prev) => ({
                         ...prev,
                         isConnected: true,
@@ -240,7 +228,7 @@ const ConnectMQTTModal = () => {
         try {
             setLoading("Scanning for MQTT devices");
             for (let i = 0; i < 3; i++) {
-                client.publish(`client_to_doser/broadcast`, JSON.stringify({
+                client.publish(`smart-doser-225/server_to_unit/broadcast`, JSON.stringify({
                     action: "SCAN",
                 }));
             }
@@ -256,28 +244,29 @@ const ConnectMQTTModal = () => {
             toast.error("MQTT client is not initialized. Please try again.");
             return;
         }
-        client.unsubscribe(`doser_to_client/broadcast`, (err) => {
+        client.unsubscribe(`smart-doser-225/unit_to_server/#`, (err) => {
             if (err) {
                 console.error("Failed to unsubscribe from MQTT topic:", err);
             }
         });
-        client.subscribe(`doser_to_client/${machineID}`, (err) => {
+        client.subscribe(`smart-doser-225/unit_to_server/${machineID}`, (err) => {
             if (err) {
                 console.error("Failed to subscribe to MQTT topic:", err);
                 setLoading(null);
                 return;
             }
-            console.log(`Subscribed to doser_to_client/${machineID}`);
+            console.log(`Subscribed to smart-doser-225/unit_to_server/${machineID}`);
         });
-        client.publish(`client_to_doser/${machineID}`, JSON.stringify({
+        client.publish(`smart-doser-225/server_to_unit/${machineID}`, JSON.stringify({
             action: "SYNC"
         }));
     }
 
-    return <Dialog open={open}>
+    return <Dialog open={open}
+        onOpenChange={setOpen}>
         {loading && <FullScreenLoader text={loading} />}
         <DialogTrigger><Button size="sm" disabled={device.isBusy || client === null} onClick={() => setOpen(true)}>Connect <LuWifi /></Button></DialogTrigger>
-        <DialogContent>
+        <DialogContent className="z-60">
             <DialogHeader>
                 <DialogTitle>Connect to MQTT</DialogTitle>
                 <DialogDescription>
