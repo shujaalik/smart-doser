@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button"
 // import { Slider } from "@/components/ui/slider";
 import { FaRegSave } from "react-icons/fa";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import FullScreenLoader from "@/components/ui/custom/loader/FullScreen";
@@ -18,29 +17,30 @@ const AddProgram = ({
     const [params, setParams] = useState<{
         name: string;
         dose: number;
-        interval: "hour" | "minute";
-        intervalValue: number;
+        mlPerMin: number;
     }>({
         name: "",
         dose: 0,
-        interval: "hour",
-        intervalValue: 1
+        mlPerMin: 1
     });
 
     const handleSave = async () => {
         setLoading("Saving Program");
         try {
+            if (!params.name || params.dose <= 0 || params.mlPerMin <= 0) {
+                toast.error("Please fill all fields correctly.");
+                setLoading(null);
+                return;
+            }
             await set(`programs/${params.name}`, {
                 name: params.name,
                 dose: params.dose,
-                interval: params.interval,
-                intervalValue: params.intervalValue
+                mlPerMin: params.mlPerMin
             });
             setParams({
                 name: "",
                 dose: 0,
-                interval: "hour",
-                intervalValue: 1
+                mlPerMin: 1
             });
             setRefreshPrograms(prev => !prev);
             toast.success("Program saved successfully!");
@@ -70,30 +70,13 @@ const AddProgram = ({
                         ...prev,
                         dose: parseInt(e.target.value) || 0
                     }))} />
-                    {/* <Slider id="dose" value={[params.dose]} defaultValue={[params.dose]} onValueChange={e => setParams(prev => ({
-                        ...prev,
-                        dose: e[0]
-                    }))} max={20} step={.1} />
-                    <span className="text-sm text-gray-500 font-semibold">{params.dose}ml</span> */}
                 </div>
-                <label htmlFor="rotation" className="text-sm font-medium text-gray-700">Interval</label>
-                <div className="grid col-span-2 gap-2 grid-cols-3 items-center">
-                    <Select value={params.interval} onValueChange={(value) => setParams(prev => ({
+                <label htmlFor="rotation" className="text-sm font-medium text-gray-700">Speed ml/min</label>
+                <div className="flex items-center gap-3 col-span-2">
+                    <Input className="text-sm h-8" placeholder="ml/min" type="number" step={1} min={1} value={params.mlPerMin || ""} onChange={e => setParams(prev => ({
                         ...prev,
-                        interval: value as "hour" | "minute"
-                    }))}>
-                        <SelectTrigger size="sm" id="interval" className="w-full col-span-2">
-                            <SelectValue placeholder="eg: (inject, eject)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="hour">Hours</SelectItem>
-                            <SelectItem value="minute">Minutes</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Input id="name" type="number" placeholder="Program Name" className="w-full" onChange={(e) => setParams(prev => ({
-                        ...prev,
-                        intervalValue: parseInt(e.target.value) || 1
-                    }))} value={params.intervalValue} />
+                        mlPerMin: parseInt(e.target.value) || 0
+                    }))} />
                 </div>
             </div>
         </div>

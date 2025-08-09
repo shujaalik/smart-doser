@@ -120,7 +120,7 @@ const Controller = ({
     return <>
         {loading && <FullScreenLoader text={loading} />}
         <div className="flex font-poppins justify-center items-center flex-col px-10 py-4 gap-5 w-full">
-            <Card className="max-w-4xl">
+            <Card className="max-w-7xl">
                 <CardContent className="py-4">
                     <div className="flex justify-between items-center mb-3">
                         <div className="flex flex-col gap-2">
@@ -167,20 +167,32 @@ const ConnectMQTTModal = () => {
 
     useEffect(() => {
         try {
+            let timeout: NodeJS.Timeout;
             const options: IClientOptions = {
                 clientId: 'react_mqtt_' + Math.random().toString(16).substr(2, 8),
                 protocol: "wss",
                 port: 8884,
             };
-            const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', options);
+            const client = mqtt.connect('wss://mqtt.industrialpmr.com', options);
             client.on("connect", () => {
                 setClient(client);
-                client.subscribe(`doser_to_client/broadcast`, (err) => {
+                client.subscribe(`smart-doser-225/unit_to_server/#`, (err) => {
                     if (err) {
                         console.error("Failed to subscribe to MQTT topic:", err);
-                        setClient(null);
+                        client.publish(`smart-doser-225/server_to_unit/broadcast`, JSON.stringify({
+                            action: "SCAN",
+                        }), {}, (err) => {
+                            if (err) {
+                                console.error("Failed to publish MQTT message:", err);
+                            }
+                        });
+                        timeout = setTimeout(() => {
+                            setLoading("Failed to connect to MQTT broker. Please try again.");
+                            setClient(null);
+                            client.end();
+                        }, 5000);
                     } else {
-                        console.log("Subscribed to doser_to_client/broadcast");
+                        console.log("Subscribed to smart-doser-225/unit_to_server/#");
                     }
                 });
             })
@@ -194,30 +206,27 @@ const ConnectMQTTModal = () => {
             });
             client.on("message", (topic, message) => {
                 const msg = message.toString();
-                if (topic === `doser_to_client/broadcast`) {
-                    try {
-                        const machineID = msg.split("/")[1];
-                        setScannedDevices((prev) => ({
-                            ...prev,
-                            [machineID]: msg
-                        }));
-                    } catch (error) {
-                        console.error("Error parsing MQTT message:", error);
-                    }
-                } else if (topic.startsWith(`doser_to_client/`)) {
-                    const machineID = topic.split("/")[1];
-                    if (msg === "ACK") {
-                        store.set(deviceAtom, (prev) => ({
-                            ...prev,
-                            isConnected: true,
-                            device: machineID
-                        }));
-                        setOpen(false);
-                        toast.success(`Connected to ${machineID}`);
-                        client.end();
-                    } else {
-                        console.error("Unexpected message received:", msg);
-                    }
+                const macAddress = topic.split("/")[2];
+                if (msg === "SCAN_ACK") {
+                    clearTimeout(timeout);
+                    setLoading(null);
+                    setScannedDevices((prev) => ({
+                        ...prev,
+                        [macAddress]: topic
+                    }));
+                    console.log("MQTT Scan Acknowledged");
+                }
+                if (msg === "ACK") {
+                    store.set(deviceAtom, (prev) => ({
+                        ...prev,
+                        isConnected: true,
+                        device: macAddress
+                    }));
+                    setOpen(false);
+                    toast.success(`Connected to ${macAddress}`);
+                    client.end();
+                } else {
+                    console.error("Unexpected message received:", msg);
                 }
             });
         } catch (error) {

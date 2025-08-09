@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { IoSettingsOutline, IoTrashBin } from "react-icons/io5";
+import { IoSettingsOutline } from "react-icons/io5";
 import { useEffect, useState } from "react";
 import FullScreenLoader from "@/components/ui/custom/loader/FullScreen";
 import { deviceAtom } from "@/components/others/jotai";
@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { get, set } from "@/components/others/firebase/api/db";
 import { transaction } from "@/components/others/functions/bluetooth";
 import { toast } from "sonner";
+import { LuDownload, LuSend, LuTrash } from "react-icons/lu";
 
 const RunProgram = ({
     refreshPrograms
@@ -20,8 +21,7 @@ const RunProgram = ({
     const [programs, setPrograms] = useState<{
         name: string;
         dose: number;
-        interval: "hour" | "minute";
-        intervalValue: number;
+        mlPerMin: number;
     }[] | null>(null);
 
     const getData = async () => {
@@ -31,8 +31,7 @@ const RunProgram = ({
             const programsList = Object.keys(data).map(key => ({
                 name: key,
                 dose: data[key].dose,
-                interval: data[key].interval,
-                intervalValue: data[key].intervalValue
+                mlPerMin: data[key].mlPerMin
             }));
             setPrograms(programsList);
         }
@@ -51,15 +50,35 @@ const RunProgram = ({
             action: "RUN_PROGRAM",
             data: {
                 name: program.name,
-                dose: program.dose,
-                interval: program.interval,
-                intervalValue: program.intervalValue
+                vtbi: program.dose,
+                flow_rate: program.mlPerMin
             }
         });
         if (resp === "ACK") {
             toast.success("Program started successfully");
         } else {
             toast.error("Failed to start the program. Please try again.");
+        }
+        setLoading(null);
+    }
+
+    const save = async (index: number) => {
+        if (!device.isConnected || device.isBusy) return;
+        setLoading("Saving Program");
+        const program = programs?.[index];
+        if (!program) return;
+        const resp = await transaction({
+            action: "SAVE_PROGRAM",
+            data: {
+                name: program.name,
+                dose: program.dose,
+                mlPerMin: program.mlPerMin
+            }
+        });
+        if (resp === "ACK") {
+            toast.success("Program saved successfully");
+        } else {
+            toast.error("Failed to save the program. Please try again.");
         }
         setLoading(null);
     }
@@ -90,11 +109,14 @@ const RunProgram = ({
                     <div key={index} className="flex items-center justify-between p-3 bg-accent rounded-md">
                         <div>
                             <p className="text-sm font-medium underline">{program.name}</p>
-                            <p className="text-xs">Dose: <strong>{program.dose}ml</strong> every <strong>{program.intervalValue} {program.interval === "hour" ? "hr" : "min"}</strong></p>
+                            <p className="text-xs">Dose: <strong>{program.dose}ml</strong>
+                                <br />
+                                Speed: <strong>{program.mlPerMin} ml/min</strong></p>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button size="sm" disabled={!device.isConnected || device.isBusy} onClick={() => act(index)}>Run</Button>
-                            <Button size="sm" variant="destructive" className="text-white" onClick={() => del(index)}><IoTrashBin /></Button>
+                            <Button size="sm" disabled={!device.isConnected || device.isBusy} onClick={() => save(index)}><LuDownload /></Button>
+                            <Button size="sm" disabled={!device.isConnected || device.isBusy} onClick={() => act(index)}><LuSend /></Button>
+                            <Button size="sm" variant="destructive" className="text-white" onClick={() => del(index)}><LuTrash /></Button>
                         </div>
                     </div>
                 )) : <Spinner />}
