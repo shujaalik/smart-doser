@@ -7,8 +7,8 @@ import {
 } from "../components/ui/card"
 import { Separator } from "../components/ui/separator"
 import { Button } from "@/components/ui/button"
-import { LuBluetooth, LuBluetoothOff, LuWifi } from "react-icons/lu";
-import { deviceAtom, store } from "@/components/others/jotai"
+import { LuBluetooth, LuBluetoothOff, LuLogs, LuWifi } from "react-icons/lu";
+import { deviceAtom, refreshLogsAtom, store } from "@/components/others/jotai"
 import { connectToBluetoothDevice, disconnectFromBluetoothDevice, transaction, verifyBluetoothDevice } from "@/components/others/functions/bluetooth"
 import useSub from "@/components/others/jotai/hooks"
 import FullScreenLoader from "@/components/ui/custom/loader/FullScreen"
@@ -27,16 +27,64 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import mqtt, { type IClientOptions, type MqttClient } from "mqtt";
+import { get } from "@/components/others/firebase/api/db";
+import { auth } from "@/components/others/firebase";
+import dayjs from "dayjs";
 
 const Controller = ({
     isDoctor
 }: {
     isDoctor: boolean;
 }) => {
+    const [allowedDevices, setAllowedDevices] = useState<string[]>([]);
     const setDevice = useSetAtom(deviceAtom);
     const device = useSub(deviceAtom);
+    const refreshLogs = useSub(refreshLogsAtom);
     const [loading, setLoading] = useState<null | string>(null);
     const [refreshPrograms, setRefreshPrograms] = useState(false);
+    const [logs, setLogs] = useState<{
+        action: string;
+        device: string;
+        timestamp: number;
+        data: object | number | string;
+    }[]>([]);
+
+    useEffect(() => {
+        const uid = auth.currentUser?.uid;
+        if (!uid) return;
+        const func = async () => {
+            const resp = await get(`users/${uid}/logs`);
+            const logsData = resp.val() as {
+                [id: string]: {
+                    action: string;
+                    timestamp: number;
+                    device: string;
+                    data: object | number | string;
+                }
+            } | null;
+            if (logsData) {
+                setLogs(Object.values(logsData));
+            }
+        }
+        func();
+    }, [refreshLogs])
+
+    useEffect(() => {
+        const fetchAllowedDevices = async () => {
+            const uid = auth.currentUser?.uid;
+            if (!uid) return;
+            const resp = await get(`users/${uid}/devices`);
+            const data = resp.val() as string[] | null;
+            if (data) {
+                setAllowedDevices(data);
+            }
+        }
+        fetchAllowedDevices();
+
+        return () => {
+            setAllowedDevices([]);
+        }
+    }, [])
 
     const connect = async () => {
         setLoading("Connecting");
@@ -47,7 +95,7 @@ const Controller = ({
         try {
             await connectToBluetoothDevice();
             setLoading("Verifying Device");
-            await verifyBluetoothDevice();
+            await verifyBluetoothDevice(allowedDevices);
         } catch (error) {
             toast.error("Failed to connect to the device. Please try again.");
             await disconnectFromBluetoothDevice();
@@ -130,8 +178,47 @@ const Controller = ({
                             <CardDescription className="mt-[-5px]">Configure/Use Connected Doser</CardDescription>
                         </div>
                         <div className="flex items-center justify-center gap-2">
+                            <Dialog>
+                                <DialogTrigger><Button size="sm" variant="outline" disabled={logs.length === 0}>Logs <LuLogs /></Button></DialogTrigger>
+                                <DialogContent className="z-60">
+                                    <DialogHeader>
+                                        <DialogTitle>Activity Logs</DialogTitle>
+                                        <DialogDescription>
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="relative mx-auto w-full">
+                                        <Separator
+                                            orientation="vertical"
+                                            className="bg-muted absolute left-2 top-4"
+                                        />
+                                        {logs.map((log, index) => (
+                                            <div key={index} className="relative mb-10 pl-8 font-poppins">
+                                                <div className="bg-foreground absolute left-0 top-3.5 flex size-4 items-center justify-center rounded-full" />
+                                                <h4 className="rounded-xl py-2 text-xl font-bold tracking-tight xl:mb-4 xl:px-3">
+                                                    {log.action}
+                                                </h4>
+
+                                                <Card className="my-5 border-none shadow-none">
+                                                    <CardContent className="px-0 xl:p-2">
+                                                        <p className="text-xs">Time: <strong>{dayjs(log.timestamp).format("YYYY-MM-DD HH:mm:ss")}</strong></p>
+                                                        <p className="text-xs">Device: <strong>{log.device}</strong></p>
+                                                        <p className="text-xs">Action: <strong>
+                                                            {log.action === "INSERT_DOSE" ?
+                                                                ((log.data as { dose: number }).dose) > 0 ? ` Injected ${(log.data as { dose: number }).dose}ml` : ` Ejected ${Math.abs((log.data as { dose: number }).dose)}ml` :
+                                                                typeof log.data === "object" ?
+                                                                    <pre>{JSON.stringify(log.data, null, 2)}</pre>
+                                                                    : `Performed ${log.data}`
+                                                            }</strong>
+                                                        </p>
+                                                    </CardContent>
+                                                </Card>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                             {!device.isConnected ? <>
-                                {isDoctor && <ConnectMQTTModal />}
+                                {isDoctor && <ConnectMQTTModal allowedDevices={allowedDevices} />}
                                 <Button size="sm" onClick={connect} disabled={device.isBusy}>Connect <LuBluetooth /></Button>
                             </>
                                 : <Button size="sm" variant={"destructive"} className="text-white" onClick={disconnect} disabled={device.isBusy}>Disconnect <LuBluetoothOff /></Button>}
@@ -156,7 +243,11 @@ const Controller = ({
     </>
 }
 
-const ConnectMQTTModal = () => {
+const ConnectMQTTModal = ({
+    allowedDevices
+}: {
+    allowedDevices: string[];
+}) => {
     const device = useSub(deviceAtom);
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState<null | string>(null);
@@ -205,6 +296,10 @@ const ConnectMQTTModal = () => {
                     console.log("MQTT Scan Acknowledged");
                 }
                 else if (msg === "ACK") {
+                    if (!allowedDevices.includes(macAddress)) {
+                        toast.error(`Device ${macAddress} is not allowed. Please contact the administrator.`);
+                        return;
+                    }
                     store.set(deviceAtom, (prev) => ({
                         ...prev,
                         isConnected: true,
@@ -221,7 +316,7 @@ const ConnectMQTTModal = () => {
             console.error("Error initializing MQTT client:", error);
             setClient(null);
         }
-    }, [])
+    }, [allowedDevices]);
 
     const scanMQTT = async () => {
         if (!client) return;

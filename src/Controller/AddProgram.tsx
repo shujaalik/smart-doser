@@ -2,45 +2,59 @@ import { Button } from "@/components/ui/button"
 // import { Slider } from "@/components/ui/slider";
 import { FaRegSave } from "react-icons/fa";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import FullScreenLoader from "@/components/ui/custom/loader/FullScreen";
 import { set } from "@/components/others/firebase/api/db";
 import { toast } from "sonner";
 import { MonitorCog } from "lucide-react";
+import dayjs from "dayjs";
+import dayjsDuration from "dayjs/plugin/duration";
+import useSub from "@/components/others/jotai/hooks";
+import { deviceAtom } from "@/components/others/jotai";
+dayjs.extend(dayjsDuration);
 
 const AddProgram = ({
     setRefreshPrograms
 }: {
     setRefreshPrograms: React.Dispatch<React.SetStateAction<boolean>>
 }) => {
+    const device = useSub(deviceAtom);
     const [loading, setLoading] = useState<null | string>(null);
     const [params, setParams] = useState<{
         name: string;
-        dose: number;
-        mlPerMin: number;
+        vtbi: number;
+        flow_rate: number;
     }>({
         name: "",
-        dose: 0,
-        mlPerMin: 1
+        vtbi: 0,
+        flow_rate: 1
     });
+
+    const seconds = useMemo(() => {
+        if (!params.vtbi || !params.flow_rate || params.flow_rate <= 0) return 0;
+        return dayjs.duration(params.vtbi / params.flow_rate, "hours").asSeconds();
+    }, [params.vtbi, params.flow_rate]);
 
     const handleSave = async () => {
         setLoading("Saving Program");
         try {
-            if (!params.name || params.dose <= 0 || params.mlPerMin <= 0) {
+            if (!params.name || params.vtbi <= 0 || params.flow_rate <= 0) {
                 toast.error("Please fill all fields correctly.");
                 setLoading(null);
                 return;
             }
-            await set(`programs/${params.name}`, {
+            if (!device.isConnected) {
+                return;
+            }
+            await set(`devices/${device.macAddress}/programs/${params.name}`, {
                 name: params.name,
-                dose: params.dose,
-                mlPerMin: params.mlPerMin
+                vtbi: params.vtbi,
+                flow_rate: params.flow_rate
             });
             setParams({
                 name: "",
-                dose: 0,
-                mlPerMin: 1
+                vtbi: 0,
+                flow_rate: 1
             });
             setRefreshPrograms(prev => !prev);
             toast.success("Program saved successfully!");
@@ -64,19 +78,23 @@ const AddProgram = ({
                         name: e.target.value
                     }))} value={params.name} />
                 </div>
-                <label htmlFor="dose" className="text-sm font-medium text-gray-700">Dose</label>
+                <label htmlFor="vtbi" className="text-sm font-medium text-gray-700">VTBI</label>
                 <div className="flex items-center gap-3 col-span-2">
-                    <Input className="text-sm h-8" placeholder="Dosage ml" type="number" step={1} min={1} value={params.dose || ""} onChange={e => setParams(prev => ({
+                    <Input className="text-sm h-8" placeholder="VTBI ml" type="number" step={1} min={1} value={params.vtbi || ""} onChange={e => setParams(prev => ({
                         ...prev,
-                        dose: parseInt(e.target.value) || 0
+                        vtbi: parseInt(e.target.value) || 0
                     }))} />
                 </div>
-                <label htmlFor="rotation" className="text-sm font-medium text-gray-700">Speed ml/min</label>
+                <label htmlFor="flow_rate" className="text-sm font-medium text-gray-700">Flow Rate ml/h</label>
                 <div className="flex items-center gap-3 col-span-2">
-                    <Input className="text-sm h-8" placeholder="ml/min" type="number" step={1} min={1} value={params.mlPerMin || ""} onChange={e => setParams(prev => ({
+                    <Input className="text-sm h-8" placeholder="ml/h" type="number" step={.1} min={1} value={params.flow_rate || ""} onChange={e => setParams(prev => ({
                         ...prev,
-                        mlPerMin: parseInt(e.target.value) || 0
+                        flow_rate: parseFloat(e.target.value) || 0
                     }))} />
+                </div>
+                <label htmlFor="rotation" className="text-sm font-medium text-gray-700">Duration</label>
+                <div className="flex items-center gap-3 col-span-2">
+                    <p className="text-sm">{dayjs.duration(seconds, "seconds").format("HH:mm:ss")}</p>
                 </div>
             </div>
         </div>

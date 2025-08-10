@@ -1,4 +1,9 @@
-import { ref, set as FBSet, get as FBGet } from "firebase/database";
+import {
+  ref,
+  set as FBSet,
+  get as FBGet,
+  push as FBPush,
+} from "firebase/database";
 import { db } from "..";
 
 const set = async (path: string, data: unknown) => {
@@ -11,4 +16,9 @@ const get = async (path: string) => {
   return await FBGet(reference);
 };
 
-export { set, get };
+const push = async (path: string, data: unknown) => {
+  const reference = ref(db, path);
+  return await FBPush(reference, data);
+};
+
+export { set, get, push };

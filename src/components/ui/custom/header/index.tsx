@@ -6,6 +6,7 @@ import Clock from "./Clock";
 import { IoSunnyOutline, IoMoonOutline, IoLogOutOutline } from "react-icons/io5";
 import { signOut } from "@/components/others/firebase/api/auth";
 import { toast } from "sonner";
+import IULogo from "@/assets/iu.jpg";
 
 const Header = () => {
     const { setTheme, theme } = useTheme();
@@ -17,10 +18,9 @@ const Header = () => {
     return <div className="flex w-full justify-between items-center">
         <div>
             <Clock />
-            {/* <h1 className="uppercase font-teko scroll-m-20 text-2xl font-extrabold tracking-tight lg:text-4xl">
-                Smart Doser
-            </h1>
-            <p className="text-sm text-muted-foreground font-medium">Smart Doser control application</p> */}
+        </div>
+        <div>
+            <img src={IULogo} alt="IU Logo" className="h-10" />
         </div>
         <div className="flex justify-center items-center gap-4">
             <Logout />

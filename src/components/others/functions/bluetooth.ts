@@ -24,12 +24,26 @@ const connectToBluetoothDevice = async () => {
     });
 };
 
-const verifyBluetoothDevice = async () => {
+const verifyBluetoothDevice = async (allowedDevices: string[]) => {
   const resp = await transaction({
-    action: "SYNC",
+    action: "GET_MAC",
   });
-  if (resp === "ACK") return true;
-  throw new Error("Device verification failed");
+  if (typeof resp !== "string") {
+    throw new Error("Invalid response from device");
+  }
+  const macAddress = resp.trim();
+  console.log("Device MAC Address:", macAddress);
+  if (!allowedDevices.includes(macAddress)) {
+    throw new Error(
+      "This device is not allowed to connect. Please contact the administrator.",
+    );
+  }
+  store.set(deviceAtom, (prev) => ({
+    ...prev,
+    macAddress: macAddress,
+  }));
+  console.log("Device is allowed to connect");
+  return true;
 };
 
 const disconnectFromBluetoothDevice = async (

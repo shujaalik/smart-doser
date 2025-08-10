@@ -2,7 +2,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { deviceAtom } from "@/components/others/jotai";
+import { deviceAtom, refreshLogsAtom } from "@/components/others/jotai";
 import useSub from "@/components/others/jotai/hooks";
 import FullScreenLoader from "@/components/ui/custom/loader/FullScreen";
 import { useSetAtom } from "jotai";
@@ -10,6 +10,9 @@ import { transaction } from "@/components/others/functions/bluetooth";
 import { toast } from "sonner";
 import { BiInjection } from "react-icons/bi";
 import { Input } from "@/components/ui/input";
+import { serverTimestamp } from "firebase/database";
+import { auth } from "@/components/others/firebase";
+import { push } from "@/components/others/firebase/api/db";
 
 const InsertDose = ({
     isDoctor
@@ -26,6 +29,21 @@ const InsertDose = ({
     const [loading, setLoading] = useState<null | string>(null);
     const device = useSub(deviceAtom);
     const setDevice = useSetAtom(deviceAtom);
+    const setlogsRefresh = useSetAtom(refreshLogsAtom);
+
+    const makeLog = async (dose: number) => {
+        const { uid } = auth.currentUser || {};
+        if (!uid) return;
+        await push(`users/${uid}/logs`, {
+            action: "INSERT_DOSE",
+            device: device.macAddress,
+            timestamp: serverTimestamp(),
+            data: {
+                dose
+            }
+        });
+        setlogsRefresh(prev => !prev);
+    }
 
     const act = async () => {
         if (!device.isConnected || device.isBusy) return;
@@ -39,12 +57,13 @@ const InsertDose = ({
         try {
             const resp = await transaction({
                 action: "INSERT_DOSE",
-                data: params.dose * (
+                data: (params.dose * (
                     params.direction === "inject" ? 1 : -1
-                )
+                )) as unknown as string
             });
             if (resp === "ACK") {
                 toast.success("Dose injected successfully");
+                await makeLog(params.dose);
             } else {
                 toast.error("Failed to inject dose. Please try again.");
             }
@@ -65,7 +84,7 @@ const InsertDose = ({
         <p className="underline flex items-center gap-1 text-xl text-accent-foreground/90 font-medium font-teko">Inject Dose <BiInjection /></p>
         <div className="flex flex-col gap-2 mt-5">
             <div className="grid grid-cols-3 gap-5 items-center">
-                <label htmlFor="rotation" className="text-sm font-medium text-gray-700">Dose</label>
+                <label htmlFor="rotation" className="text-sm font-medium text-gray-700">VTBI</label>
                 <div className="flex items-center gap-3 col-span-2">
                     <Input className="text-sm h-8" placeholder="Dosage ml" type="number" step={1} min={1} value={params.dose || ""} onChange={e => setParams(prev => ({
                         ...prev,
